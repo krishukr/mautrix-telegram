@@ -326,6 +326,16 @@ class TelegramMessageConverter:
             return
         elif not isinstance(content, TextMessageEventContent) or no_fallback:
             # Not a text message, just set the reply metadata and return
+            try:
+                event = await self.portal.main_intent.get_event(msg.mx_room, msg.mxid)
+                if event.type == EventType.ROOM_ENCRYPTED and source.bridge.matrix.e2ee:
+                    event = await source.bridge.matrix.e2ee.decrypt(event)
+                prev_mentions = event.content.get("m.mentions", {}).get("user_ids", [])
+                content["m.mentions"] = {
+                    "user_ids": list(set(prev_mentions + [event.sender]))
+                }
+            except Exception as e:
+                self.log.exception(f"Failed to get event for reply: {e}")
             content.set_reply(msg.mxid)
             if msg.mx_room != self.portal.mxid:
                 content.relates_to.in_reply_to["room_id"] = msg.mx_room
