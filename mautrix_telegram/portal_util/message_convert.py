@@ -331,9 +331,17 @@ class TelegramMessageConverter:
                 if event.type == EventType.ROOM_ENCRYPTED and source.bridge.matrix.e2ee:
                     event = await source.bridge.matrix.e2ee.decrypt(event)
                 prev_mentions = event.content.get("m.mentions", {}).get("user_ids", [])
-                content["m.mentions"] = {
-                    "user_ids": list(set(prev_mentions + [event.sender]))
-                }
+                current_sender_mxids: set[str] = set()
+                if (evt.from_id is not None):
+                    current_puppet = await pu.Puppet.get_by_peer(evt.from_id, create=False)
+                    if (current_puppet is not None):
+                        current_sender_mxids.add(current_puppet.mxid)
+                mentions = list(set(prev_mentions + [event.sender]) -
+                    current_sender_mxids)
+                if len(mentions):
+                    content["m.mentions"] = {
+                        "user_ids": mentions,
+                    }
             except Exception as e:
                 self.log.exception(f"Failed to get event for reply: {e}")
             content.set_reply(msg.mxid)
